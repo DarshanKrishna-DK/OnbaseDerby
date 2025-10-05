@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RaceStateManager } from "~/lib/race-state";
-
-// Force this API route to use Edge Runtime (shares memory)
-export const runtime = "edge";
+import { RaceStateManager } from "~/lib/race-state-singleton";
 
 export async function GET(
   request: NextRequest,
