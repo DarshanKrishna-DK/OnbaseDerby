@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RaceStateManager } from "~/lib/race-state";
+import { RaceStateManager } from "~/lib/race-state-singleton";
 import { Team } from "~/lib/contracts/types";
 
 export async function POST(request: NextRequest) {
