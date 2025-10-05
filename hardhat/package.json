@@ -1,0 +1,49 @@
+{
+  "name": "onbase-derby-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for Onbase Derby racing game",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:baseSepolia": "hardhat ignition deploy ignition/modules/RaceFactory.ts --network baseSepolia",
+    "deploy": "ts-node scripts/deploy-contracts.ts",
+    "verify": "ts-node scripts/verify-contracts.ts",
+    "node": "hardhat node"
+  },
+  "keywords": [
+    "ethereum",
+    "solidity",
+    "hardhat",
+    "base",
+    "racing-game"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-ignition": "^0.15.0",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@typechain/ethers-v6": "^0.5.0",
+    "@typechain/hardhat": "^9.0.0",
+    "@types/chai": "^4.2.0",
+    "@types/mocha": ">=9.1.0",
+    "@types/node": ">=18.0.0",
+    "chai": "^4.2.0",
+    "ethers": "^6.4.0",
+    "hardhat": "^2.22.0",
+    "hardhat-gas-reporter": "^1.0.10",
+    "solidity-coverage": "^0.8.0",
+    "ts-node": ">=8.0.0",
+    "typechain": "^8.3.0",
+    "typescript": ">=4.5.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "dotenv": "^16.0.0",
+    "framer-motion": "^12.23.22"
+  }
+}
