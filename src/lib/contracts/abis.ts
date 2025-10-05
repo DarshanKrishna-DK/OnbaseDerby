@@ -1,54 +1,184 @@
 /**
  * Contract ABIs for Onbase Derby
- * These are the compiled contract interfaces
+ * Exported from compiled contracts
  */
 
 export const RACE_FACTORY_ABI = [
-  // View functions
-  "function races(uint256) view returns (address)",
-  "function raceHosts(uint256) view returns (address)",
-  "function oracle() view returns (address)",
-  "function getActiveRaces() view returns (uint256[])",
-  "function getRaceDetails(uint256) view returns (address raceAddress, address host, uint256 entryFee, uint8 currentState, uint256 totalPlayers, uint256 prizePool)",
-  
-  // State-changing functions
-  "function createRace(uint256 entryFee) payable returns (uint256)",
-  "function joinRace(uint256 raceId) payable",
-  "function startRace(uint256 raceId)",
-  
-  // Events
-  "event RaceCreated(uint256 indexed raceId, address indexed host, address raceInstance, uint256 entryFee)",
-  "event PlayerJoined(uint256 indexed raceId, address indexed player, uint8 team)",
-  "event RaceStarted(uint256 indexed raceId)",
-  "event RaceEnded(uint256 indexed raceId, uint8 winningTeam)",
+  {
+    "inputs": [{"internalType": "address", "name": "_oracle", "type": "address"}],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "entryFee", "type": "uint256"}],
+    "name": "createRace",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "raceId", "type": "uint256"}],
+    "name": "joinRace",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "raceId", "type": "uint256"}],
+    "name": "startRace",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getActiveRaces",
+    "outputs": [{"internalType": "uint256[]", "name": "", "type": "uint256[]"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "raceId", "type": "uint256"}],
+    "name": "getRaceDetails",
+    "outputs": [
+      {"internalType": "address", "name": "raceAddress", "type": "address"},
+      {"internalType": "address", "name": "host", "type": "address"},
+      {"internalType": "uint256", "name": "entryFee", "type": "uint256"},
+      {"internalType": "uint8", "name": "currentState", "type": "uint8"},
+      {"internalType": "uint256", "name": "totalPlayers", "type": "uint256"},
+      {"internalType": "uint256", "name": "prizePool", "type": "uint256"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "uint256", "name": "raceId", "type": "uint256"},
+      {"indexed": true, "internalType": "address", "name": "host", "type": "address"},
+      {"indexed": false, "internalType": "address", "name": "raceInstance", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "entryFee", "type": "uint256"}
+    ],
+    "name": "RaceCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "uint256", "name": "raceId", "type": "uint256"},
+      {"indexed": true, "internalType": "address", "name": "player", "type": "address"},
+      {"indexed": false, "internalType": "uint8", "name": "team", "type": "uint8"}
+    ],
+    "name": "PlayerJoined",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "uint256", "name": "raceId", "type": "uint256"}
+    ],
+    "name": "RaceStarted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "uint256", "name": "raceId", "type": "uint256"},
+      {"indexed": false, "internalType": "uint8", "name": "winningTeam", "type": "uint8"}
+    ],
+    "name": "RaceEnded",
+    "type": "event"
+  }
 ] as const;
 
 export const RACE_INSTANCE_ABI = [
-  // View functions
-  "function raceId() view returns (uint256)",
-  "function entryFee() view returns (uint256)",
-  "function host() view returns (address)",
-  "function state() view returns (uint8)",
-  "function prizePool() view returns (uint256)",
-  "function winningTeam() view returns (uint8)",
-  "function playerTeam(address) view returns (uint8)",
-  "function playerTaps(address) view returns (uint256)",
-  "function team1TotalTaps() view returns (uint256)",
-  "function team2TotalTaps() view returns (uint256)",
-  "function hasClaimed(address) view returns (bool)",
-  "function getTotalPlayers() view returns (uint256)",
-  "function getTeam1Players() view returns (address[])",
-  "function getTeam2Players() view returns (address[])",
-  "function getClaimableAmount(address) view returns (uint256)",
-  
-  // State-changing functions
-  "function claimWinnings()",
-  
-  // Events
-  "event PlayerAdded(address indexed player, uint8 team)",
-  "event RaceStarted()",
-  "event RaceEnded(uint8 winningTeam, uint256 team1Taps, uint256 team2Taps)",
-  "event ResultsRecorded(address[] winners, uint256[] tapCounts)",
-  "event WinningsClaimed(address indexed player, uint256 amount)",
+  {
+    "inputs": [],
+    "name": "claimWinnings",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "state",
+    "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "prizePool",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "winningTeam",
+    "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "name": "playerTeam",
+    "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "name": "playerTaps",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getTeam1Players",
+    "outputs": [{"internalType": "address[]", "name": "", "type": "address[]"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getTeam2Players",
+    "outputs": [{"internalType": "address[]", "name": "", "type": "address[]"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "address", "name": "player", "type": "address"}],
+    "name": "getClaimableAmount",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "name": "hasClaimed",
+    "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": false, "internalType": "uint8", "name": "winningTeam", "type": "uint8"},
+      {"indexed": false, "internalType": "uint256", "name": "team1Taps", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "team2Taps", "type": "uint256"}
+    ],
+    "name": "RaceEnded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "address", "name": "player", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "WinningsClaimed",
+    "type": "event"
+  }
 ] as const;
-

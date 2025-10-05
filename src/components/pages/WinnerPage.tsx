@@ -61,7 +61,7 @@ export default function WinnerPage({
             {didIWin ? "🏆" : "😔"}
           </motion.div>
           <h1 className="text-3xl sm:text-5xl font-black mb-2">
-            Team {winningTeam === Team.Ethereum ? "Ethereum" : "Bitcoin"} Wins!
+            {winningTeam === Team.Ethereum ? "🔵 Team 1" : "🟠 Team 2"} Wins!
           </h1>
           <p className="text-xl sm:text-2xl text-gray-300">
             {didIWin ? "Congratulations! 🎉" : "Better luck next time!"}

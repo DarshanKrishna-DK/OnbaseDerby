@@ -94,8 +94,8 @@ export class RaceStateManager {
       race.team2Taps++;
     }
 
-    // Check win condition (5 laps = 2500 taps)
-    const TARGET_TAPS = 2500;
+    // Check win condition (3 laps = 3000 taps, making it slower with more taps needed)
+    const TARGET_TAPS = 3000; // 3 laps, 1000 taps per lap
     if (race.team1Taps >= TARGET_TAPS) {
       race.state = RaceState.Ended;
       race.winningTeam = Team.Ethereum;

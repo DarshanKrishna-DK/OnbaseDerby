@@ -3,9 +3,10 @@ import { RaceStateManager } from "~/lib/race-state";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { raceId: string } }
+  context: { params: Promise<{ raceId: string }> }
 ) {
   try {
+    const params = await context.params;
     const raceId = parseInt(params.raceId);
     const body = await request.json();
     const { playerAddress } = body;
@@ -21,8 +22,9 @@ export async function POST(
     const updatedRace = RaceStateManager.recordTap(raceId, playerAddress);
 
     if (!updatedRace) {
+      console.error(`❌ Tap failed: Race ${raceId} not found or not started`);
       return NextResponse.json(
-        { error: "Race not found or not started" },
+        { error: `Race ${raceId} not found or not started` },
         { status: 404 }
       );
     }
@@ -32,7 +34,7 @@ export async function POST(
       race: updatedRace,
     });
   } catch (error) {
-    console.error("Error recording tap:", error);
+    console.error("❌ Error recording tap:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

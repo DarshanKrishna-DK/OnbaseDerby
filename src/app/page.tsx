@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
-import { LandingPage } from "~/components/pages/LandingPage";
-import { Dashboard } from "~/components/pages/Dashboard";
-import { RaceTrack } from "~/components/pages/RaceTrack";
-import { WinnerPage } from "~/components/pages/WinnerPage";
+import LandingPage from "~/components/pages/LandingPage";
+import Dashboard from "~/components/pages/Dashboard";
+import RaceTrack from "~/components/pages/RaceTrack";
+import WinnerPage from "~/components/pages/WinnerPage";
 
 export type AppPage = "landing" | "dashboard" | "race" | "winner";
 
@@ -14,13 +14,28 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState<AppPage>("landing");
   const [currentRaceId, setCurrentRaceId] = useState<number | null>(null);
   const [currentRaceAddress, setCurrentRaceAddress] = useState<`0x${string}` | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Fix hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Navigate to dashboard after wallet connection
   useEffect(() => {
-    if (isConnected && currentPage === "landing") {
+    if (mounted && isConnected && currentPage === "landing") {
       setCurrentPage("dashboard");
     }
-  }, [isConnected, currentPage]);
+  }, [mounted, isConnected, currentPage]);
+
+  // Show nothing until mounted to prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-2xl">🏁</div>
+      </main>
+    );
+  }
 
   // Navigate to race track
   const goToRace = (raceId: number, raceAddress: `0x${string}`) => {
@@ -52,22 +67,13 @@ export default function Home() {
         />
       )}
       
-      {currentPage === "race" && currentRaceId !== null && currentRaceAddress && (
+      {currentPage === "race" && currentRaceId !== null && currentRaceAddress && address && (
         <RaceTrack
           raceId={currentRaceId}
           raceAddress={currentRaceAddress}
-          playerAddress={address}
-          onRaceEnd={goToWinner}
+          isHost={false} // Will be determined dynamically in RaceTrack
+          address={address}
           onBack={goToDashboard}
-        />
-      )}
-      
-      {currentPage === "winner" && currentRaceId !== null && currentRaceAddress && (
-        <WinnerPage
-          raceId={currentRaceId}
-          raceAddress={currentRaceAddress}
-          playerAddress={address}
-          onBackToDashboard={goToDashboard}
         />
       )}
     </main>

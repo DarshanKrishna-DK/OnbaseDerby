@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 export function useCreateRace() {
   const { chainId } = useAccount();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const [createdRaceId, setCreatedRaceId] = useState<number | null>(null);
 
   const createRace = (entryFee: bigint) => {
     if (!chainId) return;
@@ -31,11 +32,28 @@ export function useCreateRace() {
     hash,
   });
 
+  // Listen for RaceCreated event to get the actual race ID
+  useWatchContractEvent({
+    address: chainId ? getRaceFactoryAddress(chainId) : undefined,
+    abi: RACE_FACTORY_ABI,
+    eventName: "RaceCreated",
+    enabled: Boolean(hash), // Only listen after transaction is submitted
+    onLogs(logs) {
+      if (logs && logs.length > 0) {
+        const log = logs[logs.length - 1]; // Get the most recent event
+        const raceId = Number(log.args.raceId);
+        console.log("✅ RaceCreated event received! Race ID:", raceId);
+        setCreatedRaceId(raceId);
+      }
+    },
+  });
+
   return {
     createRace,
     isPending,
     isConfirming,
     isSuccess,
+    createdRaceId,
     error,
     hash,
   };

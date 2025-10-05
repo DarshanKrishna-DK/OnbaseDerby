@@ -3,15 +3,17 @@ import { RaceStateManager } from "~/lib/race-state";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { raceId: string } }
+  context: { params: Promise<{ raceId: string }> }
 ) {
   try {
+    const params = await context.params;
     const raceId = parseInt(params.raceId);
     const race = RaceStateManager.getRace(raceId);
 
     if (!race) {
+      // Don't spam logs for 404s (polling)
       return NextResponse.json(
-        { error: "Race not found" },
+        { error: `Race ${raceId} not found` },
         { status: 404 }
       );
     }
@@ -21,7 +23,7 @@ export async function GET(
       race,
     });
   } catch (error) {
-    console.error("Error fetching race state:", error);
+    console.error("❌ Error fetching race state:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

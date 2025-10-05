@@ -5,57 +5,120 @@ import { motion } from "framer-motion";
 import { useAccount } from "wagmi";
 import { RaceState, Team } from "~/lib/contracts/types";
 import WinnerPage from "./WinnerPage";
+import CircularTrack from "~/components/CircularTrack";
 
 interface RaceTrackProps {
   raceId: number;
   raceAddress: `0x${string}`;
   isHost: boolean;
+  address: `0x${string}` | undefined;
   onBack: () => void;
 }
 
-export default function RaceTrack({ raceId, raceAddress, isHost, onBack }: RaceTrackProps) {
-  const { address } = useAccount();
+export default function RaceTrack({ raceId, raceAddress, isHost: isHostProp, address: addressProp, onBack }: RaceTrackProps) {
+  const { address: accountAddress } = useAccount();
+  const address = addressProp || accountAddress;
   const [raceState, setRaceState] = useState<any>(null);
+  const [isHost, setIsHost] = useState(isHostProp);
   const [myTaps, setMyTaps] = useState(0);
   const [isRaceStarted, setIsRaceStarted] = useState(false);
   const [isRaceEnded, setIsRaceEnded] = useState(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const tapQueueRef = useRef<number>(0);
 
-  // Initialize race on mount
+  // Initialize race on mount - check if already exists first
   useEffect(() => {
     const initRace = async () => {
       try {
+        console.log("🏁 RaceTrack: Initializing with raceId:", raceId, "address:", address);
+        
+        if (raceId === null || raceId === undefined) {
+          console.error("❌ Invalid raceId:", raceId);
+          return;
+        }
+
+        if (!address) {
+          console.error("❌ No wallet address");
+          return;
+        }
+
+        // First check if race already exists in backend
+        console.log(`📡 Checking if race ${raceId} exists...`);
+        const checkResponse = await fetch(`/api/race/${raceId}/state`);
+
+        if (checkResponse.ok) {
+          const checkData = await checkResponse.json();
+          if (checkData.success && checkData.race) {
+            // Race exists, use existing state
+            console.log("✅ Race exists! Loading state:", checkData.race);
+            setRaceState(checkData.race);
+            
+            // Determine if current user is host
+            const hostAddress = Object.keys(checkData.race.players)[0]; // First player is host
+            if (address && hostAddress) {
+              const isCurrentUserHost = hostAddress.toLowerCase() === address.toLowerCase();
+              console.log(`👤 User is ${isCurrentUserHost ? "HOST" : "PLAYER"}`);
+              setIsHost(isCurrentUserHost);
+            }
+            
+            if (checkData.race.state === RaceState.Started) {
+              console.log("🏃 Race is already started!");
+              setIsRaceStarted(true);
+            }
+            return;
+          }
+        }
+
+        // Race doesn't exist in backend, initialize it
+        console.log(`🆕 Race ${raceId} not found in backend. Initializing...`);
         const response = await fetch("/api/race/init", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             raceId,
             players: [
-              { address: address!, team: Team.Ethereum },
-              { address: "0x1111111111111111111111111111111111111111", team: Team.Bitcoin },
+              { address: address, team: Team.Ethereum },
             ],
           }),
         });
+        
         const data = await response.json();
+        console.log("📥 Init response:", data);
+        
         if (data.success) {
+          console.log("✅ Race initialized successfully!");
           setRaceState(data.race);
+          setIsHost(true); // First user to initialize is the host
+        } else {
+          console.error("❌ Failed to initialize:", data.error);
         }
       } catch (error) {
-        console.error("Failed to initialize race:", error);
+        console.error("❌ Failed to initialize race:", error);
       }
     };
 
-    initRace();
+    if (address && raceId !== null && raceId !== undefined) {
+      initRace();
+    }
   }, [raceId, address]);
 
   // Poll race state
   const pollRaceState = useCallback(async () => {
     try {
       const response = await fetch(`/api/race/${raceId}/state`);
+      if (!response.ok) {
+        // Don't log 404 if race doesn't exist yet
+        if (response.status !== 404) {
+          console.error("Failed to fetch race state:", response.status);
+        }
+        return;
+      }
       const data = await response.json();
-      if (data.success) {
+      if (data.success && data.race) {
         setRaceState(data.race);
+        if (data.race.state === RaceState.Started && !isRaceStarted) {
+          setIsRaceStarted(true);
+        }
         if (data.race.state === RaceState.Ended) {
           setIsRaceEnded(true);
           if (pollIntervalRef.current) {
@@ -66,10 +129,21 @@ export default function RaceTrack({ raceId, raceAddress, isHost, onBack }: RaceT
     } catch (error) {
       console.error("Failed to poll race state:", error);
     }
-  }, [raceId]);
+  }, [raceId, isRaceStarted]);
 
+  // Poll for race existence (for non-hosts waiting for initialization)
+  useEffect(() => {
+    if (!raceState) {
+      const waitForRaceInterval = setInterval(pollRaceState, 1000);
+      return () => clearInterval(waitForRaceInterval);
+    }
+  }, [raceState, pollRaceState]);
+
+  // Poll during active race
   useEffect(() => {
     if (isRaceStarted && !isRaceEnded) {
+      // Start polling immediately
+      pollRaceState();
       pollIntervalRef.current = setInterval(pollRaceState, 200);
       return () => {
         if (pollIntervalRef.current) {
@@ -84,19 +158,23 @@ export default function RaceTrack({ raceId, raceAddress, isHost, onBack }: RaceT
     if (!isRaceStarted || isRaceEnded) return;
 
     const sendTapsInterval = setInterval(async () => {
-      if (tapQueueRef.current > 0) {
+      const tapsToSend = tapQueueRef.current;
+      if (tapsToSend > 0) {
+        tapQueueRef.current = 0; // Reset immediately to prevent duplicates
         try {
-          await fetch(`/api/race/${raceId}/tap`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ playerAddress: address }),
-          });
-          tapQueueRef.current = 0;
+          // Send the batch of taps
+          for (let i = 0; i < tapsToSend; i++) {
+            await fetch(`/api/race/${raceId}/tap`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ playerAddress: address }),
+            });
+          }
         } catch (error) {
           console.error("Failed to send taps:", error);
         }
       }
-    }, 100);
+    }, 50); // Send every 50ms for smoother updates
 
     return () => clearInterval(sendTapsInterval);
   }, [isRaceStarted, isRaceEnded, raceId, address]);
@@ -124,10 +202,13 @@ export default function RaceTrack({ raceId, raceAddress, isHost, onBack }: RaceT
     tapQueueRef.current++;
   };
 
-  // Calculate positions
-  const TARGET_TAPS = 2500;
+  // Calculate positions and laps (3 laps = 3000 taps total, 1000 per lap)
+  const TARGET_TAPS = 3000; // 3 laps
+  const TAPS_PER_LAP = 1000;
   const team1Progress = raceState ? (raceState.team1Taps / TARGET_TAPS) * 100 : 0;
   const team2Progress = raceState ? (raceState.team2Taps / TARGET_TAPS) * 100 : 0;
+  const team1Laps = raceState ? Math.floor(raceState.team1Taps / TAPS_PER_LAP) : 0;
+  const team2Laps = raceState ? Math.floor(raceState.team2Taps / TAPS_PER_LAP) : 0;
 
   // Get player's team
   const myTeam = raceState?.players[address!]?.team;
@@ -173,16 +254,37 @@ export default function RaceTrack({ raceId, raceAddress, isHost, onBack }: RaceT
           animate={{ opacity: 1, scale: 1 }}
           className="text-center py-12"
         >
-          <div className="inline-block bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-2xl">
-            <h2 className="text-3xl font-bold mb-4">🏁 Race Lobby</h2>
-            <p className="text-gray-300 mb-6">
+          <div className="inline-block bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-white/20 shadow-2xl max-w-md mx-auto">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4">🏁 Race Lobby</h2>
+            
+            {/* Player Count */}
+            <div className="bg-white/10 rounded-xl p-4 mb-6">
+              <p className="text-sm text-gray-400 mb-2">Players in Race</p>
+              <div className="flex items-center justify-between">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-400">
+                    {raceState ? Object.values(raceState.players).filter(p => p.team === Team.Ethereum).length : 0}
+                  </div>
+                  <div className="text-xs text-gray-400">Team 🔵</div>
+                </div>
+                <div className="text-gray-500 font-bold">VS</div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-400">
+                    {raceState ? Object.values(raceState.players).filter(p => p.team === Team.Bitcoin).length : 0}
+                  </div>
+                  <div className="text-xs text-gray-400">Team 🟠</div>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-sm sm:text-base text-gray-300 mb-4 sm:mb-6">
               {isHost ? "Ready to start the race?" : "Waiting for host to start..."}
             </p>
             
             {isHost ? (
               <button
                 onClick={handleStartRace}
-                className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl font-bold text-lg hover:scale-105 active:scale-95 transition-transform shadow-lg"
+                className="w-full px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl font-bold text-base sm:text-lg hover:scale-105 active:scale-95 transition-transform shadow-lg"
               >
                 🚀 START RACE
               </button>
@@ -199,73 +301,39 @@ export default function RaceTrack({ raceId, raceAddress, isHost, onBack }: RaceT
 
       {/* Race Track */}
       {isRaceStarted && (
-        <div className="max-w-6xl mx-auto">
-          {/* Track Container */}
-          <div className="bg-gradient-to-r from-gray-800/50 to-gray-700/50 backdrop-blur-sm rounded-3xl p-4 sm:p-8 border border-white/10 mb-6">
-            {/* Team 1 - Ethereum */}
-            <div className="mb-8">
+        <div className="max-w-4xl mx-auto px-4">
+          {/* Circular Track */}
+          <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-3xl p-6 sm:p-8 border border-white/10 mb-6">
+            <CircularTrack
+              team1Progress={team1Progress}
+              team2Progress={team2Progress}
+              team1Laps={team1Laps}
+              team2Laps={team2Laps}
+            />
+          </div>
+
+          {/* Tap Stats */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="bg-blue-500/10 backdrop-blur-sm rounded-xl p-4 border border-blue-500/30">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <span className="text-3xl sm:text-4xl">🔵</span>
-                  <span className="font-bold text-lg sm:text-xl">Team Ethereum</span>
-                </div>
-                <span className="text-xl sm:text-2xl font-bold text-blue-400">
-                  {raceState?.team1Taps || 0} taps
-                </span>
+                <span className="text-2xl">🔵</span>
+                <span className="text-sm text-gray-400">Team 1</span>
               </div>
-              <div className="relative h-16 sm:h-20 bg-gray-900/50 rounded-2xl overflow-hidden border-2 border-blue-500/30">
-                <motion.div
-                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500/50 to-blue-400/30"
-                  initial={{ width: "0%" }}
-                  animate={{ width: `${Math.min(team1Progress, 100)}%` }}
-                  transition={{ duration: 0.3 }}
-                />
-                <div className="absolute inset-0 flex items-center">
-                  <motion.div
-                    className="text-4xl sm:text-5xl ml-2"
-                    animate={{ x: `${Math.min(team1Progress, 100) * 9}px` }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  >
-                    🪙
-                  </motion.div>
-                </div>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-3xl sm:text-4xl">
-                  🏁
-                </div>
-              </div>
+              <p className="text-2xl sm:text-3xl font-bold text-blue-400">
+                {raceState?.team1Taps || 0}
+              </p>
+              <p className="text-xs text-gray-500">taps</p>
             </div>
 
-            {/* Team 2 - Bitcoin */}
-            <div>
+            <div className="bg-orange-500/10 backdrop-blur-sm rounded-xl p-4 border border-orange-500/30">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <span className="text-3xl sm:text-4xl">🟠</span>
-                  <span className="font-bold text-lg sm:text-xl">Team Bitcoin</span>
-                </div>
-                <span className="text-xl sm:text-2xl font-bold text-orange-400">
-                  {raceState?.team2Taps || 0} taps
-                </span>
+                <span className="text-2xl">🟠</span>
+                <span className="text-sm text-gray-400">Team 2</span>
               </div>
-              <div className="relative h-16 sm:h-20 bg-gray-900/50 rounded-2xl overflow-hidden border-2 border-orange-500/30">
-                <motion.div
-                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-500/50 to-orange-400/30"
-                  initial={{ width: "0%" }}
-                  animate={{ width: `${Math.min(team2Progress, 100)}%` }}
-                  transition={{ duration: 0.3 }}
-                />
-                <div className="absolute inset-0 flex items-center">
-                  <motion.div
-                    className="text-4xl sm:text-5xl ml-2"
-                    animate={{ x: `${Math.min(team2Progress, 100) * 9}px` }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  >
-                    🪙
-                  </motion.div>
-                </div>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-3xl sm:text-4xl">
-                  🏁
-                </div>
-              </div>
+              <p className="text-2xl sm:text-3xl font-bold text-orange-400">
+                {raceState?.team2Taps || 0}
+              </p>
+              <p className="text-xs text-gray-500">taps</p>
             </div>
           </div>
 
@@ -278,30 +346,39 @@ export default function RaceTrack({ raceId, raceAddress, isHost, onBack }: RaceT
             >
               TAP! 👆
             </motion.button>
-            <motion.p
+            <motion.div
               key={myTaps}
-              initial={{ scale: 1.5, opacity: 0 }}
+              initial={{ scale: 1.2, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="mt-4 text-2xl sm:text-3xl font-bold text-yellow-400"
+              className="mt-4 text-center"
             >
-              Your Taps: {myTaps}
-            </motion.p>
+              <p className="text-2xl sm:text-3xl font-bold text-yellow-400">
+                {myTaps}
+              </p>
+              <p className="text-sm text-gray-400 mt-1">your taps</p>
+            </motion.div>
           </div>
 
-          {/* Stats */}
+          {/* Your Stats */}
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-white/10">
-            <h3 className="text-lg sm:text-xl font-bold mb-4 text-center">📊 Live Stats</h3>
-            <div className="grid grid-cols-2 gap-4 text-center">
+            <h3 className="text-lg sm:text-xl font-bold mb-4 text-center">📊 Your Stats</h3>
+            <div className="grid grid-cols-3 gap-4 text-center">
               <div>
-                <p className="text-gray-400 text-sm mb-1">Your Team</p>
-                <p className="text-xl sm:text-2xl font-bold">
-                  {myTeam === Team.Ethereum ? "🔵 Ethereum" : "🟠 Bitcoin"}
+                <p className="text-gray-400 text-xs sm:text-sm mb-1">Your Team</p>
+                <p className="text-lg sm:text-xl font-bold">
+                  {myTeam === Team.Ethereum ? "🔵 Team 1" : "🟠 Team 2"}
                 </p>
               </div>
               <div>
-                <p className="text-gray-400 text-sm mb-1">Team Total</p>
-                <p className="text-xl sm:text-2xl font-bold">
-                  {myTeam === Team.Ethereum ? raceState?.team1Taps : raceState?.team2Taps}
+                <p className="text-gray-400 text-xs sm:text-sm mb-1">Your Taps</p>
+                <p className="text-lg sm:text-xl font-bold text-yellow-400">
+                  {myTaps}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-xs sm:text-sm mb-1">Team Lap</p>
+                <p className="text-lg sm:text-xl font-bold text-green-400">
+                  {myTeam === Team.Ethereum ? team1Laps : team2Laps}/3
                 </p>
               </div>
             </div>

@@ -7,6 +7,7 @@ import { baseSepolia } from "wagmi/chains";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { useActiveRaces, useRaceDetails, useCreateRace, useJoinRace } from "~/lib/contracts/hooks";
 import { formatEther, parseEther } from "viem";
+import { getRaceFactoryAddress } from "~/lib/contracts/addresses";
 import { RaceState } from "~/lib/contracts/types";
 
 interface DashboardProps {
@@ -14,7 +15,7 @@ interface DashboardProps {
   onRaceSelect: (raceId: number, raceAddress: `0x${string}`) => void;
 }
 
-export function Dashboard({ address, onRaceSelect }: DashboardProps) {
+export default function Dashboard({ address, onRaceSelect }: DashboardProps) {
   const { disconnect } = useDisconnect();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
@@ -22,69 +23,80 @@ export function Dashboard({ address, onRaceSelect }: DashboardProps) {
   const [selectedEntryFee, setSelectedEntryFee] = useState("0.001");
 
   const { raceIds, refetch } = useActiveRaces();
-  const { createRace, isPending: isCreating } = useCreateRace();
+  const { createRace, isPending: isCreating, isConfirming, isSuccess, createdRaceId, error: createError } = useCreateRace();
   
-  // Demo mode support
-  const [demoRaces, setDemoRaces] = useState<number[]>([]);
-  const isDemoMode = !process.env.NEXT_PUBLIC_RACE_FACTORY_ADDRESS;
-
+  // Handle successful race creation
   useEffect(() => {
-    if (isDemoMode) {
-      // Load demo races
-      import("~/lib/demo-data").then(({ getMockActiveRaces }) => {
-        setDemoRaces(getMockActiveRaces());
-      });
+    if (isSuccess) {
+      console.log("Race created successfully! Race ID:", createdRaceId);
+      setShowCreateModal(false);
+      refetch();
     }
-  }, [isDemoMode]);
-
-  const displayRaceIds = isDemoMode ? demoRaces : raceIds;
+  }, [isSuccess, createdRaceId, refetch]);
+  
+  // Handle creation errors
+  useEffect(() => {
+    if (createError) {
+      console.error("Error creating race:", createError);
+      alert(`Failed to create race: ${createError.message}`);
+    }
+  }, [createError]);
 
   const handleCreateRace = async () => {
-    if (isDemoMode) {
-      // Demo mode: create mock race
-      const { createMockRace } = await import("~/lib/demo-data");
-      const entryFee = parseEther(selectedEntryFee);
-      const newRace = createMockRace(entryFee, address!);
-      setDemoRaces((prev) => [...prev, newRace.raceId]);
-      setShowCreateModal(false);
-      return;
-    }
+    const entryFee = parseEther(selectedEntryFee);
 
+    // Check network
     if (chainId !== baseSepolia.id) {
+      console.log("Wrong network, switching to Base Sepolia...");
       switchChain?.({ chainId: baseSepolia.id });
       return;
     }
 
-    const entryFee = parseEther(selectedEntryFee);
-    createRace(entryFee);
-    setShowCreateModal(false);
+    // Create race on blockchain with entry fee as value
+    try {
+      console.log("Creating race with entry fee:", formatEther(entryFee), "ETH");
+      console.log("Chain ID:", chainId);
+      console.log("Factory address:", getRaceFactoryAddress(chainId));
+      
+      createRace(entryFee);
+      
+      // Don't close modal yet - wait for transaction to be signed
+      // Modal will close when transaction is confirmed
+    } catch (error) {
+      console.error("Failed to create race:", error);
+      alert("Failed to create race. Check console for details.");
+    }
   };
 
   return (
     <div className="min-h-screen pb-24">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 backdrop-blur-lg border-b border-white/10 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                Onbase Derby
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
+            {/* Logo */}
+            <div className="flex-shrink-0 min-w-0">
+              <h1 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent truncate">
+                🏁 Onbase Derby
               </h1>
-              <p className="text-sm text-gray-400">Ethereum vs Bitcoin</p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="bg-white/5 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/10">
-                <div className="text-xs text-gray-400 mb-1">Wallet</div>
-                <div className="font-mono text-sm text-white">
-                  {address && truncateAddress(address)}
+            
+            {/* Wallet Info */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              {/* Wallet Address */}
+              <div className="bg-white/5 backdrop-blur-sm px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl border border-white/10">
+                <div className="font-mono text-xs sm:text-sm text-white whitespace-nowrap">
+                  {address && `${address.slice(0, 4)}...${address.slice(-4)}`}
                 </div>
               </div>
+              
+              {/* Disconnect Button */}
               <button
                 onClick={() => disconnect()}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-1.5 sm:p-2 hover:bg-white/10 rounded-lg transition-colors flex-shrink-0"
                 title="Disconnect"
               >
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               </button>
@@ -125,38 +137,25 @@ export function Dashboard({ address, onRaceSelect }: DashboardProps) {
             </button>
           </div>
 
-          {isDemoMode && demoRaces.length === 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="bg-blue-500/10 border border-blue-500/50 rounded-xl p-4 mb-4 text-center"
-            >
-              <p className="text-blue-400 font-semibold">🎮 Demo Mode Active</p>
-              <p className="text-sm text-gray-400 mt-1">
-                Create races to test without deployed contracts
-              </p>
-            </motion.div>
-          )}
-
-          {displayRaceIds.length === 0 ? (
+          {raceIds.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-center py-20"
+              className="text-center py-12 sm:py-20 px-4"
             >
-              <div className="text-6xl mb-4">🏁</div>
-              <h3 className="text-2xl font-bold text-white mb-2">No Active Races</h3>
-              <p className="text-gray-400 mb-6">Be the first to create a race and start competing!</p>
+              <div className="text-5xl sm:text-6xl mb-4">🏁</div>
+              <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">No Active Races</h3>
+              <p className="text-sm sm:text-base text-gray-400 mb-6">Be the first to create a race and start competing!</p>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-xl text-white font-semibold transition-all"
+                className="px-6 sm:px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-xl text-white font-semibold transition-all text-sm sm:text-base hover:scale-105 active:scale-95"
               >
                 Create First Race
               </button>
             </motion.div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {displayRaceIds.map((raceId) => (
+              {raceIds.map((raceId) => (
                 <RaceCard
                   key={raceId}
                   raceId={raceId}
@@ -216,10 +215,12 @@ export function Dashboard({ address, onRaceSelect }: DashboardProps) {
                 </button>
                 <button
                   onClick={handleCreateRace}
-                  disabled={isCreating}
+                  disabled={isCreating || isConfirming}
                   className="flex-1 py-3 px-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isCreating ? "Creating..." : "Create"}
+                  {isCreating && "⏳ Sign TX..."}
+                  {isConfirming && "⌛ Confirming..."}
+                  {!isCreating && !isConfirming && "Create"}
                 </button>
               </div>
             </motion.div>
@@ -237,37 +238,35 @@ interface RaceCardProps {
 }
 
 function RaceCard({ raceId, currentAddress, onSelect }: RaceCardProps) {
-  const { raceDetails: contractRaceDetails, isLoading } = useRaceDetails(raceId);
-  const { joinRace, isPending } = useJoinRace();
-  const [mockRaceDetails, setMockRaceDetails] = useState<any>(null);
-  const isDemoMode = !process.env.NEXT_PUBLIC_RACE_FACTORY_ADDRESS;
-
-  useEffect(() => {
-    if (isDemoMode) {
-      import("~/lib/demo-data").then(({ getMockRaceDetails }) => {
-        const details = getMockRaceDetails(raceId);
-        setMockRaceDetails(details);
-      });
-    }
-  }, [raceId, isDemoMode]);
-
-  const raceDetails = isDemoMode ? mockRaceDetails : contractRaceDetails;
+  const { raceDetails, isLoading } = useRaceDetails(raceId);
+  const { joinRace, isPending, isConfirming, isSuccess, error: joinError } = useJoinRace();
 
   const handleJoin = async () => {
     if (!raceDetails) return;
 
-    if (isDemoMode) {
-      const { joinMockRace } = await import("~/lib/demo-data");
-      joinMockRace(raceId, raceDetails.entryFee);
-      // Refresh display
-      const { getMockRaceDetails } = await import("~/lib/demo-data");
-      const updated = getMockRaceDetails(raceId);
-      setMockRaceDetails(updated);
-      return;
+    try {
+      console.log("Joining race:", raceId, "with entry fee:", formatEther(raceDetails.entryFee), "ETH");
+      joinRace(raceId, raceDetails.entryFee);
+    } catch (error) {
+      console.error("Failed to join race:", error);
+      alert("Failed to join race. Check console for details.");
     }
-
-    joinRace(raceId, raceDetails.entryFee);
   };
+  
+  // Handle successful join
+  useEffect(() => {
+    if (isSuccess) {
+      console.log("Successfully joined race!");
+    }
+  }, [isSuccess]);
+  
+  // Handle join errors
+  useEffect(() => {
+    if (joinError) {
+      console.error("Error joining race:", joinError);
+      alert(`Failed to join: ${joinError.message}`);
+    }
+  }, [joinError]);
 
   if (isLoading || !raceDetails) {
     return (
@@ -309,10 +308,12 @@ function RaceCard({ raceId, currentAddress, onSelect }: RaceCardProps) {
       {raceDetails.state === RaceState.Created && !isHost && (
         <button
           onClick={handleJoin}
-          disabled={isPending}
-          className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50"
+          disabled={isPending || isConfirming}
+          className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isPending ? "Joining..." : "Join Race"}
+          {isPending && "⏳ Sign TX..."}
+          {isConfirming && "⌛ Confirming..."}
+          {!isPending && !isConfirming && "Join Race"}
         </button>
       )}
 
