@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RaceStateManager } from "~/lib/race-state";
 
+// Force this API route to use Edge Runtime (shares memory)
+export const runtime = "edge";
+
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ raceId: string }> }
@@ -11,7 +14,6 @@ export async function GET(
     const race = RaceStateManager.getRace(raceId);
 
     if (!race) {
-      // Don't spam logs for 404s (polling)
       return NextResponse.json(
         { error: `Race ${raceId} not found` },
         { status: 404 }
@@ -30,4 +32,3 @@ export async function GET(
     );
   }
 }
-

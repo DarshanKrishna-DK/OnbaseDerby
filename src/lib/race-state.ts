@@ -23,16 +23,20 @@ export interface RaceGameState {
 }
 
 // In-memory store (in production, use Redis or database)
-// Use globalThis to persist across hot reloads in development
-const globalForRaceState = globalThis as unknown as {
-  raceStates: Map<number, RaceGameState> | undefined;
-};
-
-const raceStates = globalForRaceState.raceStates ?? new Map<number, RaceGameState>();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForRaceState.raceStates = raceStates;
+// Use global variable to persist across ALL imports
+declare global {
+  var __raceStates: Map<number, RaceGameState> | undefined;
 }
+
+// Initialize or reuse existing Map from global scope
+if (!global.__raceStates) {
+  console.log("🆕 Initializing NEW global raceStates Map");
+  global.__raceStates = new Map<number, RaceGameState>();
+} else {
+  console.log(`♻️  Reusing EXISTING global raceStates Map with ${global.__raceStates.size} races`);
+}
+
+const raceStates = global.__raceStates;
 
 export class RaceStateManager {
   /**
