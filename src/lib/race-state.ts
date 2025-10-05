@@ -23,13 +23,31 @@ export interface RaceGameState {
 }
 
 // In-memory store (in production, use Redis or database)
-const raceStates = new Map<number, RaceGameState>();
+// Use globalThis to persist across hot reloads in development
+const globalForRaceState = globalThis as unknown as {
+  raceStates: Map<number, RaceGameState> | undefined;
+};
+
+const raceStates = globalForRaceState.raceStates ?? new Map<number, RaceGameState>();
+
+if (process.env.NODE_ENV !== "production") {
+  globalForRaceState.raceStates = raceStates;
+}
 
 export class RaceStateManager {
   /**
    * Initialize a new race state
    */
   static initRace(raceId: number): RaceGameState {
+    console.log(`💾 RaceStateManager.initRace(${raceId})`);
+    
+    // Check if race already exists
+    const existing = raceStates.get(raceId);
+    if (existing) {
+      console.log(`⚠️  Race ${raceId} already exists in memory, returning existing`);
+      return existing;
+    }
+    
     const state: RaceGameState = {
       raceId,
       state: RaceState.Created,
@@ -39,6 +57,7 @@ export class RaceStateManager {
       winningTeam: Team.None,
     };
     raceStates.set(raceId, state);
+    console.log(`✅ Race ${raceId} created. Total races in memory: ${raceStates.size}`);
     return state;
   }
 
@@ -46,32 +65,48 @@ export class RaceStateManager {
    * Get race state
    */
   static getRace(raceId: number): RaceGameState | undefined {
-    return raceStates.get(raceId);
+    const race = raceStates.get(raceId);
+    if (!race) {
+      console.log(`❌ Race ${raceId} not found. Available races: [${Array.from(raceStates.keys()).join(", ")}]`);
+    }
+    return race;
   }
 
   /**
    * Add player to race
    */
   static addPlayer(raceId: number, address: string, team: Team): void {
+    console.log(`👤 Adding player ${address} to race ${raceId} (team: ${team})`);
     const race = raceStates.get(raceId);
-    if (!race) return;
+    if (!race) {
+      console.error(`❌ Cannot add player - race ${raceId} not found!`);
+      return;
+    }
 
-    race.players[address] = {
-      address,
+    // Normalize address to lowercase for consistency
+    const normalizedAddress = address.toLowerCase();
+    race.players[normalizedAddress] = {
+      address: normalizedAddress,
       team,
       taps: 0,
     };
+    console.log(`✅ Player added. Total players in race ${raceId}: ${Object.keys(race.players).length}`);
   }
 
   /**
    * Start race
    */
   static startRace(raceId: number): void {
+    console.log(`🏁 RaceStateManager.startRace(${raceId})`);
     const race = raceStates.get(raceId);
-    if (!race) return;
+    if (!race) {
+      console.error(`❌ Cannot start race ${raceId} - not found in memory!`);
+      return;
+    }
 
     race.state = RaceState.Started;
     race.startedAt = Date.now();
+    console.log(`✅ Race ${raceId} started successfully`);
   }
 
   /**
@@ -79,10 +114,23 @@ export class RaceStateManager {
    */
   static recordTap(raceId: number, playerAddress: string): RaceGameState | null {
     const race = raceStates.get(raceId);
-    if (!race || race.state !== RaceState.Started) return null;
+    
+    if (!race) {
+      console.error(`❌ recordTap: Race ${raceId} not found!`);
+      return null;
+    }
+    
+    if (race.state !== RaceState.Started) {
+      console.error(`❌ recordTap: Race ${raceId} not started (state: ${race.state})`);
+      return null;
+    }
 
-    const player = race.players[playerAddress];
-    if (!player) return null;
+    const player = race.players[playerAddress.toLowerCase()];
+    if (!player) {
+      console.error(`❌ recordTap: Player ${playerAddress} not in race ${raceId}`);
+      console.log(`Available players:`, Object.keys(race.players));
+      return null;
+    }
 
     // Increment player taps
     player.taps++;
@@ -100,10 +148,12 @@ export class RaceStateManager {
       race.state = RaceState.Ended;
       race.winningTeam = Team.Ethereum;
       race.endedAt = Date.now();
+      console.log(`🏆 Race ${raceId} ended! Team Ethereum wins!`);
     } else if (race.team2Taps >= TARGET_TAPS) {
       race.state = RaceState.Ended;
       race.winningTeam = Team.Bitcoin;
       race.endedAt = Date.now();
+      console.log(`🏆 Race ${raceId} ended! Team Bitcoin wins!`);
     }
 
     return race;
